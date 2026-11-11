@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Noto Sans JP', Arial, sans-serif; font-size: 13px; color: #333; margin: 0; padding: 12px; }
+  h2 { font-size: 13px; margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e5e5; }
+  .preview { border: 1px solid #e5e5e5; border-radius: 6px; padding: 6px; background: #fff; }
+  .types { display: flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-top: 10px; }
+  .types button { flex: 1; border: none; background: #fff; padding: 7px 0; font-size: 12px; cursor: pointer; font-family: inherit; color: #555; }
+  .types button + button { border-left: 1px solid #ccc; }
+  .types button.on { background: #1a73e8; color: #fff; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-weight: normal; color: #777; font-size: 11px; text-align: left; padding: 2px; }
+  td { padding: 2px; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 5px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-family: inherit;
+  }
+  .del { border: none; background: none; color: #999; cursor: pointer; font-size: 16px; padding: 0 4px; }
+  .del:hover { color: #d93025; }
+  .row { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; gap: 8px; }
+  .row label { flex: 1; }
+  .row .field { width: 58%; }
+  input[type=color] { width: 44px; height: 28px; border: 1px solid #ccc; border-radius: 4px; padding: 0; cursor: pointer; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  .preset { display: flex; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; cursor: pointer; padding: 0; background: none; }
+  .preset span { width: 20px; height: 20px; display: block; }
+  .sub { background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 5px 10px; font-size: 12px; cursor: pointer; margin-top: 6px; }
+  .sub:hover { background: #f5f5f5; }
+  .primary { width: 100%; background: #1a73e8; color: #fff; border: none; padding: 10px; border-radius: 4px; font-size: 14px; cursor: pointer; margin-top: 20px; }
+  .primary:disabled { opacity: .6; cursor: default; }
+  .auto { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; cursor: pointer; }
+  .msg { margin-top: 8px; font-size: 12px; min-height: 16px; }
+  .msg.err { color: #d93025; }
+  .msg.ok { color: #188038; }
+  details summary { cursor: pointer; color: #1a73e8; font-size: 12px; margin-top: 8px; }
+  .hint { color: #888; font-size: 11px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+  <div class="preview"><svg id="preview" viewBox="0 0 280 170" width="100%"></svg></div>
+
+  <div class="types" id="types">
+    <button data-type="column">縦棒</button>
+    <button data-type="bar">横棒</button>
+    <button data-type="line">折れ線</button>
+  </div>
+
+  <h2>データ</h2>
+  <table>
+    <thead><tr><th style="width:40%">ラベル</th><th>値</th><th style="width:34px">強調</th><th style="width:22px"></th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <button class="sub" id="addRow">＋ 行を追加</button>
+
+  <details>
+    <summary>Excelやスプレッドシートから貼り付ける</summary>
+    <p class="hint">「ラベル」と「値」の2列をコピーして貼り付け、「反映」を押してください。いまの行は置き換わります。</p>
+    <textarea id="paste" rows="5"></textarea>
+    <button class="sub" id="applyPaste">反映</button>
+  </details>
+
+  <h2>色</h2>
+  <div class="presets" id="presets"></div>
+  <div class="row"><label id="lb_bar">通常の棒</label><input type="color" id="c_bar"></div>
+  <div class="row"><label id="lb_highlight">強調する棒</label><input type="color" id="c_highlight"></div>
+  <div class="row"><label>数値</label><input type="color" id="c_value"></div>
+  <div class="row"><label>軸の文字</label><input type="color" id="c_text"></div>
+  <div class="row"><label>補助線</label><input type="color" id="c_grid"></div>
+
+  <h2>表示</h2>
+  <div class="row"><label>凡例</label><input class="field" type="text" id="legend" placeholder="空欄で非表示"></div>
+  <div class="row"><label id="lb_yTitle">数値の軸の名称</label><input class="field" type="text" id="yTitle" placeholder="例：（百万円）空欄で非表示"></div>
+  <div class="row"><label id="lb_xTitle">項目の軸の名称</label><input class="field" type="text" id="xTitle" placeholder="例：年度　空欄で非表示"></div>
+  <div class="row"><label>フォント</label>
+    <select class="field" id="font">
+      <option value="Noto Sans JP">Noto Sans JP</option>
+      <option value="BIZ UDPGothic">BIZ UDPゴシック</option>
+      <option value="M PLUS 1p">M PLUS 1p</option>
+      <option value="Zen Kaku Gothic New">Zen Kaku Gothic New</option>
+      <option value="Arial">Arial</option>
+    </select>
+  </div>
+  <div class="row"><label>文字サイズ</label><input class="field" type="number" id="fontSize" min="6" max="36"></div>
+  <div class="row" id="ratioRow"><label>棒の太さ</label><input class="field" type="range" id="barRatio" min="0.3" max="0.95" step="0.05"></div>
+  <div class="row"><label>目盛りの最大</label><input class="field" type="number" id="yMax" placeholder="空欄で自動"></div>
+  <div class="row"><label>目盛りの間隔</label><input class="field" type="number" id="yStep" min="1"></div>
+
+  <button class="primary" id="draw">スライドに反映</button>
+  <label class="auto"><input type="checkbox" id="auto"> 自動で反映（入力が止まって約1.5秒後）</label>
+  <div class="msg" id="msg"></div>
+  <p class="hint">グラフを置きたいスライドを開いた状態で押してください。すでにグラフがあるスライドでは、位置と大きさを保ったまま描き直します。</p>
+  <button class="sub" id="reset">初期値に戻す</button>
+
+<script>
+  const PRESETS = [
+    { name: 'ブルー × オレンジ',  bar: '#42AED0', highlight: '#FF8048' },
+    { name: 'ネイビー × ゴールド', bar: '#1F3A68', highlight: '#E3A82B' },
+    { name: 'グリーン × コーラル', bar: '#3BA58B', highlight: '#F2706B' },
+    { name: 'グレー × レッド',    bar: '#B8BEC6', highlight: '#E04848' },
+    { name: 'パープル × ピンク',   bar: '#6C5CE7', highlight: '#FF6FA5' },
+  ];
+  const COLOR_KEYS = ['bar', 'highlight', 'value', 'text', 'grid'];
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  let state = null;
+
+  /* 読み込み */
+  function load(s) {
+    state = s;
+    renderRows();
+    COLOR_KEYS.forEach(k => $('c_' + k).value = s.colors[k]);
+    $('legend').value = s.legend || '';
+    $('yTitle').value = s.yTitle || '';
+    $('xTitle').value = s.xTitle || '';
+    $('font').value = s.font;
+    $('fontSize').value = s.fontSize;
+    $('barRatio').value = s.barRatio;
+    $('yMax').value = s.yMax || '';
+    $('yStep').value = s.yStep;
+    setType(s.type || 'column');
+    preview();
+  }
+
+  /* グラフの種類 */
+  function setType(t) {
+    state.type = t;
+    document.querySelectorAll('#types button').forEach(b => b.classList.toggle('on', b.dataset.type === t));
+    const isLine = t === 'line';
+    $('ratioRow').style.display = isLine ? 'none' : '';
+    $('lb_bar').textContent = isLine ? '線と点' : '通常の棒';
+    $('lb_highlight').textContent = isLine ? '強調する点' : '強調する棒';
+    $('lb_yTitle').textContent = '数値の軸の名称（' + (t === 'bar' ? '横軸' : '縦軸') + '）';
+    $('lb_xTitle').textContent = '項目の軸の名称（' + (t === 'bar' ? '縦軸' : '横軸') + '）';
+  }
+  document.querySelectorAll('#types button').forEach(b => {
+    b.onclick = () => { setType(b.dataset.type); changed(); };
+  });
+
+  /* データの行 */
+  function renderRows() {
+    const tb = $('rows');
+    tb.innerHTML = '';
+    state.data.forEach((d, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><input type="text" data-k="label" value="' + esc(d.label) + '"></td>' +
+        '<td><input type="number" data-k="value" value="' + esc(d.value) + '"></td>' +
+        '<td style="text-align:center"><input type="checkbox" data-k="highlight"' + (d.highlight ? ' checked' : '') + '></td>' +
+        '<td><button class="del" title="この行を削除">×</button></td>';
+      tr.querySelectorAll('input').forEach(inp => {
+        const ev = inp.type === 'checkbox' ? 'change' : 'input';
+        inp.addEventListener(ev, () => {
+          const k = inp.dataset.k;
+          state.data[i][k] = k === 'highlight' ? inp.checked : inp.value;
+          changed();
+        });
+      });
+      tr.querySelector('.del').onclick = () => { state.data.splice(i, 1); renderRows(); changed(); };
+      tb.appendChild(tr);
+    });
+  }
+
+  $('addRow').onclick = () => {
+    const last = state.data[state.data.length - 1];
+    const next = last && /^\d+$/.test(last.label) ? String(Number(last.label) + 1) : '';
+    state.data.push({ label: next, value: '', highlight: false });
+    renderRows();
+    changed();
+  };
+
+  $('applyPaste').onclick = () => {
+    const rows = $('paste').value.split(/\r?\n/).map(line => {
+      let p = line.split('\t');
+      if (p.length < 2) p = line.trim().split(/\s+/);
+      if (p.length < 2) return null;
+      const v = p[1].replace(/[,，円¥\s]/g, '');
+      return v !== '' && !isNaN(v) ? { label: p[0].trim(), value: v, highlight: false } : null;
+    }).filter(Boolean);
+    if (!rows.length) { msg('読み取れる行がありませんでした。2列（ラベル・値）をコピーしてください。', 'err'); return; }
+    state.data = rows;
+    renderRows();
+    msg(rows.length + '行を取り込みました。', 'ok');
+    changed();
+  };
+
+  /* 色のプリセット */
+  PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'preset';
+    b.title = p.name;
+    b.innerHTML = '<span style="background:' + p.bar + '"></span><span style="background:' + p.highlight + '"></span>';
+    b.onclick = () => { $('c_bar').value = p.bar; $('c_highlight').value = p.highlight; changed(); };
+    $('presets').appendChild(b);
+  });
+
+  /* 入力値をまとめる */
+  function collect() {
+    const colors = {};
+    COLOR_KEYS.forEach(k => colors[k] = $('c_' + k).value);
+    return {
+      type: state.type,
+      data: state.data,
+      colors: colors,
+      legend: $('legend').value,
+      yTitle: $('yTitle').value.trim(),
+      xTitle: $('xTitle').value.trim(),
+      font: $('font').value,
+      fontSize: Number($('fontSize').value),
+      barRatio: Number($('barRatio').value),
+      yMax: $('yMax').value === '' ? 0 : Number($('yMax').value),
+      yStep: Number($('yStep').value),
+    };
+  }
+
+  /* プレビュー（スライドに描く前の目安） */
+  function preview() {
+    const s = collect();
+    const C = s.colors;
+    const data = s.data
+      .filter(d => String(d.label).trim() !== '' && d.value !== '' && !isNaN(d.value))
+      .map(d => ({ label: d.label, value: Number(d.value), highlight: d.highlight }));
+    const step = s.yStep > 0 ? s.yStep : 50;
+    const maxVal = Math.max(1, ...data.map(d => d.value));
+    const max = s.yMax && s.yMax >= maxVal ? s.yMax : (Math.ceil(maxVal / step) * step || step);
+    const f = 'font-family="' + esc(s.font) + ', sans-serif"';
+    const n = Math.max(1, data.length);
+    const showTicks = max / step <= 20;
+    // 左上と下に置く軸の名称（横棒は数値と項目の軸が入れ替わる）
+    const topTitle = s.type === 'bar' ? s.xTitle : s.yTitle;
+    const bottomTitle = s.type === 'bar' ? s.yTitle : s.xTitle;
+    const top0 = topTitle ? 10 : 0, foot = bottomTitle ? 10 : 0;
+    const T = (x, y, str, size, anchor, color) =>
+      '<text x="' + x + '" y="' + y + '" font-size="' + size + '" text-anchor="' + anchor + '" fill="' + color + '" ' + f + '>' + esc(str) + '</text>';
+    let svg = '';
+
+    if (s.type === 'bar') {
+      // 横棒
+      const L = 34, R = 268, Tp = 8 + top0, B = 154 - foot;
+      const x = v => L + (R - L) * v / max;
+      if (showTicks) for (let v = 0; v <= max; v += step) {
+        svg += '<line x1="' + x(v) + '" y1="' + Tp + '" x2="' + x(v) + '" y2="' + B + '" stroke="' + C.grid + '" stroke-width="0.6"/>';
+        svg += T(x(v), B + 10, v, 7, 'middle', C.text);
+      }
+      const slot = (B - Tp) / n, bh = slot * s.barRatio;
+      data.forEach((d, i) => {
+        const y = Tp + i * slot + (slot - bh) / 2, len = x(d.value) - L;
+        const r = Math.max(0, Math.min(3, bh / 2, len));
+        svg += '<path d="M' + L + ',' + y + ' H' + (L + len - r) + ' Q' + (L + len) + ',' + y + ' ' + (L + len) + ',' + (y + r) +
+               ' V' + (y + bh - r) + ' Q' + (L + len) + ',' + (y + bh) + ' ' + (L + len - r) + ',' + (y + bh) + ' H' + L + ' Z" fill="' + (d.highlight ? C.highlight : C.bar) + '"/>';
+        const inside = len >= 22;
+        svg += T(inside ? L + len - 3 : L + len + 3, y + bh / 2 + 2.3, d.value, 6.5, inside ? 'end' : 'start', C.value);
+        svg += T(L - 4, y + bh / 2 + 2.5, d.label, 7, 'end', C.text);
+      });
+    } else {
+      // 縦棒・折れ線
+      const isLine = s.type === 'line';
+      const L = 28, R = 276, Tp = (isLine ? 20 : 12) + top0, B = 150 - foot;
+      const y = v => B - (B - Tp) * v / max;
+      if (showTicks) for (let v = 0; v <= max; v += step) {
+        svg += '<line x1="' + L + '" y1="' + y(v) + '" x2="' + R + '" y2="' + y(v) + '" stroke="' + C.grid + '" stroke-width="0.6"/>';
+        svg += T(L - 4, y(v) + 2.5, v, 7, 'end', C.text);
+      }
+      const slot = (R - L) / n;
+      data.forEach((d, i) => svg += T(L + (i + 0.5) * slot, B + 10, d.label, 7, 'middle', C.text));
+
+      if (!isLine) {
+        const bw = slot * s.barRatio;
+        data.forEach((d, i) => {
+          const x = L + i * slot + (slot - bw) / 2, top = y(d.value);
+          const r = Math.max(0, Math.min(3, bw / 2, B - top));
+          svg += '<path d="M' + x + ',' + B + ' V' + (top + r) + ' Q' + x + ',' + top + ' ' + (x + r) + ',' + top +
+                 ' H' + (x + bw - r) + ' Q' + (x + bw) + ',' + top + ' ' + (x + bw) + ',' + (top + r) + ' V' + B + ' Z" fill="' + (d.highlight ? C.highlight : C.bar) + '"/>';
+          const inside = B - top >= 12;
+          svg += T(x + bw / 2, inside ? top + 8 : top - 2, d.value, 6.5, 'middle', C.value);
+        });
+      } else {
+        const pts = data.map((d, i) => ({ x: L + (i + 0.5) * slot, y: y(d.value), d: d }));
+        for (let i = 0; i < pts.length - 1; i++) {
+          const to = pts[i + 1];
+          svg += '<line x1="' + pts[i].x + '" y1="' + pts[i].y + '" x2="' + to.x + '" y2="' + to.y + '" stroke="' +
+                 (to.d.highlight ? C.highlight : C.bar) + '" stroke-width="1.6"' + (to.d.highlight ? ' stroke-dasharray="4 3"' : '') + '/>';
+        }
+        pts.forEach((p, i) => {
+          const c = p.d.highlight ? C.highlight : C.bar, r = p.d.highlight ? 3.2 : 2.4;
+          const nb = [pts[i - 1], pts[i + 1]].filter(Boolean);
+          const below = nb.length > 0 && nb.every(q => q.y < p.y); // 谷の点は数値を下に
+          svg += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + r + '" fill="' + (p.d.highlight ? c : '#fff') + '" stroke="' + c + '" stroke-width="1.2"/>';
+          svg += T(p.x, below ? p.y + r + 7 : p.y - r - 3, p.d.value, 6.5, 'middle', C.value);
+        });
+      }
+    }
+    if (topTitle) svg += T(4, 9, topTitle, 7, 'start', C.text);
+    if (bottomTitle) svg += T(152, 167, bottomTitle, 7, 'middle', C.text);
+    $('preview').innerHTML = svg;
+  }
+
+  ['legend', 'yTitle', 'xTitle', 'font', 'fontSize', 'barRatio', 'yMax', 'yStep'].concat(COLOR_KEYS.map(k => 'c_' + k))
+    .forEach(id => $(id).addEventListener('input', changed));
+
+  /* 反映・初期化 */
+  function msg(text, type) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (type || ''); }
+
+  // 反映が重ならないように、実行中に変更があれば終わってから最新の内容で1回だけ描き直す
+  let busy = false, pending = false, timer = null;
+
+  function changed() {
+    preview();
+    if (!$('auto').checked) return;
+    clearTimeout(timer);
+    timer = setTimeout(runDraw, 1500);
+  }
+
+  function runDraw() {
+    clearTimeout(timer);
+    if (busy) { pending = true; return; }
+    busy = true;
+    pending = false;
+    $('draw').disabled = true;
+    msg('反映しています…');
+    google.script.run
+      .withSuccessHandler(m => finish(m, 'ok'))
+      .withFailureHandler(e => finish(e.message, 'err'))
+      .saveAndDraw(collect());
+  }
+
+  function finish(text, type) {
+    busy = false;
+    $('draw').disabled = false;
+    if (pending) { runDraw(); return; }
+    msg(text, type);
+  }
+
+  $('draw').onclick = runDraw;
+
+  // 自動反映のオン・オフを覚えておく
+  try { $('auto').checked = localStorage.getItem('barChartAuto') === '1'; } catch (e) {}
+  $('auto').addEventListener('change', () => {
+    try { localStorage.setItem('barChartAuto', $('auto').checked ? '1' : '0'); } catch (e) {}
+    if ($('auto').checked) runDraw();
+  });
+
+  let resetArmed = false;
+  $('reset').onclick = () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      $('reset').textContent = 'もう一度押すと初期値に戻ります';
+      setTimeout(() => { resetArmed = false; $('reset').textContent = '初期値に戻す'; }, 4000);
+      return;
+    }
+    resetArmed = false;
+    $('reset').textContent = '初期値に戻す';
+    google.script.run.withSuccessHandler(s => { load(s); msg('初期値に戻しました。', 'ok'); }).resetSettings();
+  };
+
+  google.script.run
+    .withSuccessHandler(load)
+    .withFailureHandler(e => msg(e.message, 'err'))
+    .getSettings();
+</script>
+</body>
+</html>
